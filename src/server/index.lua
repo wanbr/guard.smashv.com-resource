@@ -1,27 +1,24 @@
-local TOKEN = GetConvar('SMASHV_GUARD_TOKEN', '')
-
-if not TOKEN or TOKEN == '' then
-    error('SMASHV_GUARD_TOKEN is not set')
-    return
-end
-
 local function validate_token()
-    local validated = false
+    local promise = promise.new()
 
-    PerformHttpRequest('https://smashv-guard.herokuapp.com/validate', function(err, text, headers)
-        print(err, text, headers)
-    end, 'POST', json.encode({ token = TOKEN }), { ['Content-Type'] = 'application/json' })
+    PerformHttpRequest(Constants.API_BASE_URL .. '/tokens/verify', function(_, body, _)
+        promise:resolve(json.decode(body))
+    end, 'POST', json.encode({ token = Constants.TOKEN }),
+        { ['Content-Type'] = 'application/json' })
 
-    return validated
+    local data = Citizen.Await(promise)
+
+    return data?.valid
 end
 
 local function bootstrap()
     local validated = validate_token()
 
-    if not validated then
-        error('SMASHV_GUARD_TOKEN is invalid')
-        return
-    end
+    Functions.assert(not validated, 'SMASHV_GUARD_TOKEN is invalid')
 end
 
-bootstrap()
+Citizen.CreateThread(function()
+    Functions.assert(not Constants.TOKEN, 'SMASHV_GUARD_TOKEN is not set')
+
+    bootstrap()
+end)
